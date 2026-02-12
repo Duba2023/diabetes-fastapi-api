@@ -15,6 +15,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
+@app.get("/")
+def home():
+    return {"message": "Diabetes Prediction API is running 🚀"}
+
 # Pydantic Input Model
 class DiabetesFeatures(BaseModel):
     Pregnancies: int = Field(..., ge=0, le=17, description="Number of times pregnant")
