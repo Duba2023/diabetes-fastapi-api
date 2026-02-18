@@ -1,28 +1,33 @@
 import streamlit as st
-import requests
-import os
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+import joblib
+from scipy.stats import boxcox, yeojohnson
 
 # ------------------------------
-# FastAPI URL (live service)
+# Load model and scaler
 # ------------------------------
-API_URL = os.getenv(
-    "FASTAPI_URL",
-    "https://diabetes-fastapi-api.onrender.com/predict"
-)
+@st.cache_resource
+def load_model_and_scaler():
+    model = tf.keras.models.load_model('diabetes_model.h5')
+    scaler = joblib.load('scaler.joblib')
+    return model, scaler
+
+model, scaler = load_model_and_scaler()
+
+# Hardcoded preprocessing parameters (from training)
+MEDIANS = {'Insulin':125, 'SkinThickness':29, 'BMI':32, 'BloodPressure':72, 'Glucose':117}
+LAMBDAS = {'Insulin':0.0639, 'DiabetesPedigreeFunction':-0.0731, 'Age':-1.0944, 'Pregnancies':0.1727, 'BloodPressure':0.8980}
 
 # ------------------------------
-# Streamlit Page Setup
+# Streamlit UI
 # ------------------------------
-st.set_page_config(page_title="Diabetes Prediction System", layout="centered")
+st.set_page_config(page_title="Diabetes Prediction App")
 st.title("🩺 Diabetes Prediction App")
-st.write("Enter patient clinical details to assess diabetes risk.")
 
-# ------------------------------
-# Sidebar Inputs
-# ------------------------------
 with st.sidebar:
     st.header("Patient Information")
-
     pregnancies = st.number_input("Pregnancies", 0, 20, 1)
     glucose = st.number_input("Glucose", 0, 300, 100)
     blood_pressure = st.number_input("Blood Pressure", 0, 200, 70)
@@ -33,47 +38,46 @@ with st.sidebar:
     age = st.number_input("Age", 1, 120, 30)
 
 # ------------------------------
-# Predict Button
+# Prediction logic
 # ------------------------------
 if st.sidebar.button("Predict Diabetes"):
+    input_df = pd.DataFrame([{
+        'Pregnancies': pregnancies,
+        'Glucose': glucose,
+        'BloodPressure': blood_pressure,
+        'SkinThickness': skin_thickness,
+        'Insulin': insulin,
+        'BMI': bmi,
+        'DiabetesPedigreeFunction': dpf,
+        'Age': age
+    }])
 
-    payload = {
-        "Pregnancies": pregnancies,
-        "Glucose": glucose,
-        "BloodPressure": blood_pressure,
-        "SkinThickness": skin_thickness,
-        "Insulin": insulin,
-        "BMI": bmi,
-        "DiabetesPedigreeFunction": dpf,
-        "Age": age
-    }
+    # Missing indicators
+    columns_to_process_zeros = ['Insulin','SkinThickness','BMI','BloodPressure','Glucose']
+    for col in columns_to_process_zeros:
+        input_df[f'{col}_Missing'] = (input_df[col]==0).astype(int)
+        input_df[col] = input_df[col].replace(0, MEDIANS[col])
 
-    try:
-        response = requests.post(API_URL, json=payload, timeout=30)
-        st.write("API Status Code:", response.status_code)
+    # Transformations
+    for col in ['Insulin','DiabetesPedigreeFunction','Age']:
+        input_df[col] = boxcox(input_df[col], lmbda=LAMBDAS[col])
+    for col in ['Pregnancies','BloodPressure']:
+        input_df[col] = yeojohnson(input_df[col], lmbda=LAMBDAS[col])
 
-        if response.status_code != 200:
-            st.error(f"API returned an error (status code {response.status_code}).")
-            st.write("Response Text:", response.text)
-        else:
-            try:
-                result = response.json()
+    # Scale numerical columns
+    cols_to_scale = ['Pregnancies','Glucose','BloodPressure','SkinThickness','Insulin','BMI','DiabetesPedigreeFunction','Age']
+    input_df[cols_to_scale] = scaler.transform(input_df[cols_to_scale])
 
-                probability = result.get("prediction_probability") or result.get("probability")
-                outcome_text = result.get("predicted_outcome") or ("Diabetes" if result.get("prediction")==1 else "No Diabetes")
+    # Arrange columns
+    feature_order = cols_to_scale + [f'{c}_Missing' for c in columns_to_process_zeros]
+    input_df = input_df[feature_order]
 
-                st.subheader("Prediction Result")
-                if outcome_text == "Diabetes":
-                    st.error(f"⚠️ High Risk of Diabetes\nProbability: {probability:.2f}")
-                elif outcome_text == "No Diabetes":
-                    st.success(f"✅ Low Risk of Diabetes\nProbability: {probability:.2f}")
-                else:
-                    st.warning("⚠️ Unexpected outcome received from API.")
+    # Prediction
+    pred_proba = model.predict(input_df)[0][0]
+    pred_class = 1 if pred_proba >= 0.5 else 0
 
-            except ValueError:
-                st.error("API did not return valid JSON.")
-                st.write("Raw Response:", response.text)
-
-    except requests.exceptions.RequestException as e:
-        st.error("Failed to connect to FastAPI service.")
-        st.write(str(e))
+    # Display result
+    if pred_class==1:
+        st.error(f"⚠️ High Risk of Diabetes\nProbability: {pred_proba:.2f}")
+    else:
+        st.success(f"✅ Low Risk of Diabetes\nProbability: {pred_proba:.2f}")
