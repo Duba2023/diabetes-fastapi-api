@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, Depends
 from pydantic import BaseModel, Field
 import joblib
@@ -12,7 +11,7 @@ from functools import lru_cache
 app = FastAPI(
     title="Pima Diabetes Prediction API",
     description="API for predicting diabetes based on health indicators",
-    version="1.0.0"
+    version="1.1.0"
 )
 
 @app.get("/")
@@ -21,91 +20,72 @@ def home():
 
 # Pydantic Input Model
 class DiabetesFeatures(BaseModel):
-    Pregnancies: int = Field(..., ge=0, le=17, description="Number of times pregnant")
-    Glucose: float = Field(..., ge=0, le=199, description="Plasma glucose concentration a 2 hours in an oral glucose tolerance test")
-    BloodPressure: float = Field(..., ge=0, le=122, description="Diastolic blood pressure (mmHg)")
-    SkinThickness: float = Field(..., ge=0, le=99, description="Triceps skin fold thickness (mm)")
-    Insulin: float = Field(..., ge=0, le=846, description="2-Hour serum insulin (mu U/ml)")
-    BMI: float = Field(..., ge=0.0, le=67.1, description="Body mass index (weight in kg/(height in m)^2)")
-    DiabetesPedigreeFunction: float = Field(..., ge=0.078, le=2.42, description="Diabetes pedigree function")
-    Age: int = Field(..., ge=21, le=81, description="Age in years")
+    Pregnancies: int = Field(..., ge=0, le=17)
+    Glucose: float = Field(..., ge=0, le=199)
+    BloodPressure: float = Field(..., ge=0, le=122)
+    SkinThickness: float = Field(..., ge=0, le=99)
+    Insulin: float = Field(..., ge=0, le=846)
+    BMI: float = Field(..., ge=0.0, le=67.1)
+    DiabetesPedigreeFunction: float = Field(..., ge=0.078, le=2.42)
+    Age: int = Field(..., ge=21, le=81)
 
 # Load Assets (Model and Scaler)
 @lru_cache()
 def load_model():
-    model = tf.keras.models.load_model('diabetes_model.h5')
-    return model
+    return tf.keras.models.load_model('diabetes_model.h5')
 
 @lru_cache()
 def load_scaler():
-    scaler = joblib.load('scaler.joblib')
-    return scaler
+    return joblib.load('scaler.joblib')
 
-# Hardcoded parameters from training notebook for consistency
-MEDIANS = {
-    'Insulin': 125.0,
-    'SkinThickness': 29.0,
-    'BMI': 32.0,
-    'BloodPressure': 72.0,
-    'Glucose': 117.0
-}
+# Hardcoded training medians & lambdas
+MEDIANS = {'Insulin':125,'SkinThickness':29,'BMI':32,'BloodPressure':72,'Glucose':117}
+LAMBDAS = {'Insulin':0.0639,'DiabetesPedigreeFunction':-0.0731,'Age':-1.0944,'Pregnancies':0.1727,'BloodPressure':0.8980}
 
-LAMBDAS = {
-    'Insulin': 0.0639,
-    'DiabetesPedigreeFunction': -0.0731,
-    'Age': -1.0944,
-    'Pregnancies': 0.1727,
-    'BloodPressure': 0.8980
-}
-
-# Preprocessing function (mimics training notebook steps)
+# Preprocessing function
 def preprocess_input(input_data: DiabetesFeatures, scaler_obj):
-    input_df = pd.DataFrame([input_data.dict()])
-    processed_df = input_df.copy()
+    df = pd.DataFrame([input_data.dict()])
+    processed = df.copy()
 
-    columns_to_process_zeros = ['Insulin', 'SkinThickness', 'BMI', 'BloodPressure', 'Glucose']
-    for col in columns_to_process_zeros:
-        processed_df[f'{col}_Missing'] = (processed_df[col] == 0).astype(int)
-        processed_df[col] = processed_df[col].replace(0, np.nan)
-        processed_df[col].fillna(MEDIANS[col], inplace=True)
+    zeros_cols = ['Insulin','SkinThickness','BMI','BloodPressure','Glucose']
+    for col in zeros_cols:
+        processed[f'{col}_Missing'] = (processed[col]==0).astype(int)
+        processed[col] = processed[col].replace(0, np.nan).fillna(MEDIANS[col])
 
-    columns_for_boxcox = ['Insulin', 'DiabetesPedigreeFunction', 'Age']
-    columns_for_yeojohnson = ['Pregnancies', 'BloodPressure']
+    boxcox_cols = ['Insulin','DiabetesPedigreeFunction','Age']
+    yeojohnson_cols = ['Pregnancies','BloodPressure']
 
-    for col in columns_for_boxcox:
-        processed_df[col] = boxcox(processed_df[col], lmbda=LAMBDAS[col])
+    for col in boxcox_cols:
+        processed[col] = boxcox(processed[col], lmbda=LAMBDAS[col])
 
-    for col in columns_for_yeojohnson:
-        processed_df[col] = yeojohnson(processed_df[col], lmbda=LAMBDAS[col])
+    for col in yeojohnson_cols:
+        processed[col] = yeojohnson(processed[col], lmbda=LAMBDAS[col])
 
-    columns_to_scale = [
-        'Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin',
-        'BMI', 'DiabetesPedigreeFunction', 'Age'
-    ]
-    processed_df[columns_to_scale] = scaler_obj.transform(processed_df[columns_to_scale])
+    scale_cols = ['Pregnancies','Glucose','BloodPressure','SkinThickness','Insulin','BMI','DiabetesPedigreeFunction','Age']
+    processed[scale_cols] = scaler_obj.transform(processed[scale_cols])
 
-    feature_columns_order = [
-        'Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI',
-        'DiabetesPedigreeFunction', 'Age', 'Insulin_Missing', 'SkinThickness_Missing',
-        'BMI_Missing', 'BloodPressure_Missing', 'Glucose_Missing'
-    ]
-    
-    for col in columns_to_process_zeros:
-        if f'{col}_Missing' not in processed_df.columns:
-            processed_df[f'{col}_Missing'] = 0
-
-    processed_df = processed_df[feature_columns_order]
-
-    return processed_df
+    feature_order = ['Pregnancies','Glucose','BloodPressure','SkinThickness','Insulin','BMI',
+                     'DiabetesPedigreeFunction','Age','Insulin_Missing','SkinThickness_Missing',
+                     'BMI_Missing','BloodPressure_Missing','Glucose_Missing']
+    for col in zeros_cols:
+        if f'{col}_Missing' not in processed.columns:
+            processed[f'{col}_Missing'] = 0
+    processed = processed[feature_order]
+    return processed
 
 @app.post("/predict")
-async def predict_diabetes(input_data: DiabetesFeatures, model_obj: tf.keras.Model = Depends(load_model), scaler_obj = Depends(load_scaler)):
+async def predict_diabetes(input_data: DiabetesFeatures,
+                           model_obj: tf.keras.Model = Depends(load_model),
+                           scaler_obj = Depends(load_scaler)):
     processed_input = preprocess_input(input_data, scaler_obj)
-    prediction_proba = model_obj.predict(processed_input)[0][0]
+    prediction_proba = float(model_obj.predict(processed_input)[0][0])
     binary_prediction = 1 if prediction_proba >= 0.5 else 0
-    outcome_text = "Diabetes" if binary_prediction == 1 else "No Diabetes"
+    outcome_text = "Diabetes" if binary_prediction==1 else "No Diabetes"
 
+    # Universal response (supports old frontend and descriptive)
     return {
-        "prediction_probability": float(prediction_proba),
-        "predicted_outcome": outcome_text
+        "prediction_probability": prediction_proba,  # descriptive key
+        "predicted_outcome": outcome_text,          # descriptive key
+        "probability": prediction_proba,            # old frontend key
+        "prediction": binary_prediction             # old frontend key
     }
