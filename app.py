@@ -1,23 +1,28 @@
 import streamlit as st
 import requests
-
-# ------------------------------
-# Replace with your FastAPI service live URL
-# ------------------------------
 import os
-API_URL = os.getenv("FASTAPI_URL", "https://diabetes-fastapi-api.onrender.com/predict")
 
+# ------------------------------
+# FastAPI URL (live service)
+# ------------------------------
+API_URL = os.getenv(
+    "FASTAPI_URL",
+    "https://diabetes-fastapi-api.onrender.com/predict"
+)
 
-# Page config
+# ------------------------------
+# Streamlit Page Setup
+# ------------------------------
 st.set_page_config(page_title="Diabetes Prediction System", layout="centered")
 st.title("🩺 Diabetes Prediction App")
 st.write("Enter patient clinical details to assess diabetes risk.")
 
 # ------------------------------
-# Sidebar inputs
+# Sidebar Inputs
 # ------------------------------
 with st.sidebar:
     st.header("Patient Information")
+
     pregnancies = st.number_input("Pregnancies", 0, 20, 1)
     glucose = st.number_input("Glucose", 0, 300, 100)
     blood_pressure = st.number_input("Blood Pressure", 0, 200, 70)
@@ -28,7 +33,7 @@ with st.sidebar:
     age = st.number_input("Age", 1, 120, 30)
 
 # ------------------------------
-# Predict button
+# Predict Button
 # ------------------------------
 if st.sidebar.button("Predict Diabetes"):
 
@@ -45,10 +50,6 @@ if st.sidebar.button("Predict Diabetes"):
 
     try:
         response = requests.post(API_URL, json=payload, timeout=30)
-
-        # ------------------------------
-        # Status code check
-        # ------------------------------
         st.write("API Status Code:", response.status_code)
 
         if response.status_code != 200:
@@ -58,9 +59,6 @@ if st.sidebar.button("Predict Diabetes"):
             try:
                 result = response.json()
 
-                # ------------------------------
-                # Universal keys
-                # ------------------------------
                 probability = result.get("prediction_probability") or result.get("probability")
                 outcome_text = result.get("predicted_outcome") or ("Diabetes" if result.get("prediction")==1 else "No Diabetes")
 
