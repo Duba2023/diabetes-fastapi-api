@@ -2,7 +2,8 @@ import streamlit as st
 import requests
 
 # 🔹 Replace with your actual FastAPI Render URL
-API_URL = "https://your-fastapi-service.onrender.com/predict"
+API_URL = "https://diabetes-fastapi-api.onrender.com/predict"
+
 
 st.set_page_config(page_title="Diabetes Prediction System", layout="centered")
 st.title("🩺 Diabetes Prediction App")
