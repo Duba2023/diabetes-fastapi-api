@@ -10,6 +10,7 @@ from scipy.stats import boxcox, yeojohnson
 import os
 import logging
 import sys
+import traceback
 
 # Configure logging with more detail
 logging.basicConfig(
@@ -19,12 +20,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-logger.info("=" * 60)
-logger.info("DIABETES PREDICTION API - STARTUP")
-logger.info("=" * 60)
-logger.info(f"Current working directory: {os.getcwd()}")
+logger.info("=" * 80)
+logger.info("DIABETES PREDICTION API - STARTUP DIAGNOSTIC")
+logger.info("=" * 80)
+logger.info(f"Python Version: {sys.version}")
+logger.info(f"TensorFlow Version: {tf.__version__}")
+logger.info(f"Current Working Directory: {os.getcwd()}")
 logger.info(f"Files in current directory: {os.listdir('.')}")
-logger.info("=" * 60)
+logger.info("=" * 80)
 
 app = FastAPI(
     title="Diabetes Prediction Deep Learning API",
