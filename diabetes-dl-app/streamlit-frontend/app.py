@@ -1,7 +1,9 @@
 import streamlit as st
 import requests
+import os
 
-API_URL = "https://diabetes-fastapi-api.onrender.com/predict"
+# Use environment variable or default to Render deployment URL
+API_URL = os.getenv("API_URL", "https://diabetes-dl-api.onrender.com/predict")
 
 st.title("🩺 Diabetes Prediction App")
 
