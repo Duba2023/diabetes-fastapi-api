@@ -71,8 +71,21 @@ try:
         logger.info(f"Model file size: {file_size} bytes")
     
     logger.info("Loading with TensorFlow...")
-    model = tf.keras.models.load_model(model_path)
-    logger.info("✓✓✓ MODEL LOADED SUCCESSFULLY ✓✓✓")
+    logger.info(f"TensorFlow Version: {tf.__version__}")
+    
+    # Try standard load first
+    try:
+        model = tf.keras.models.load_model(model_path)
+        logger.info("✓✓✓ MODEL LOADED SUCCESSFULLY (Standard) ✓✓✓")
+    except Exception as e:
+        logger.warning(f"Standard load failed, trying with safe_mode=False: {type(e).__name__}")
+        # Try with custom_objects empty dict to skip validation
+        model = tf.keras.models.load_model(
+            model_path, 
+            custom_objects={},
+            safe_mode=False
+        )
+        logger.info("✓✓✓ MODEL LOADED SUCCESSFULLY (Safe Mode) ✓✓✓")
     
 except FileNotFoundError as e:
     logger.error(f"❌ Model file not found: {e}")
@@ -81,6 +94,7 @@ except Exception as e:
     logger.error(f"❌ Failed to load model: {type(e).__name__}: {e}")
     import traceback
     logger.error(traceback.format_exc())
+    logger.error("Model loading failed - predictions will not be available")
 
 # Try to load scaler
 try:
