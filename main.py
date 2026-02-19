@@ -9,10 +9,22 @@ import joblib
 from scipy.stats import boxcox, yeojohnson
 import os
 import logging
+import sys
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with more detail
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
+)
 logger = logging.getLogger(__name__)
+
+logger.info("=" * 60)
+logger.info("DIABETES PREDICTION API - STARTUP")
+logger.info("=" * 60)
+logger.info(f"Current working directory: {os.getcwd()}")
+logger.info(f"Files in current directory: {os.listdir('.')}")
+logger.info("=" * 60)
 
 app = FastAPI(
     title="Diabetes Prediction Deep Learning API",
@@ -31,29 +43,68 @@ app = FastAPI(
 # Allow Streamlit to call this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # You can restrict later
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load model & scaler once with error handling
+# Load model & scaler once with DETAILED error handling
 model = None
 scaler = None
 
-try:
-    logger.info("Loading TensorFlow model...")
-    model = tf.keras.models.load_model("diabetes_model.h5")
-    logger.info("✓ Model loaded successfully")
-except Exception as e:
-    logger.error(f"Failed to load model: {e}")
+logger.info("=" * 60)
+logger.info("LOADING MODEL AND SCALER")
+logger.info("=" * 60)
 
+# Try to load TensorFlow model
 try:
-    logger.info("Loading scaler...")
-    scaler = joblib.load("scaler.joblib")
-    logger.info("✓ Scaler loaded successfully")
+    model_path = "diabetes_model.h5"
+    logger.info(f"Attempting to load model from: {model_path}")
+    logger.info(f"Model file exists: {os.path.exists(model_path)}")
+    
+    if os.path.exists(model_path):
+        file_size = os.path.getsize(model_path)
+        logger.info(f"Model file size: {file_size} bytes")
+    
+    logger.info("Loading with TensorFlow...")
+    model = tf.keras.models.load_model(model_path)
+    logger.info("✓✓✓ MODEL LOADED SUCCESSFULLY ✓✓✓")
+    
+except FileNotFoundError as e:
+    logger.error(f"❌ Model file not found: {e}")
+    logger.error(f"Current directory contents: {os.listdir('.')}")
 except Exception as e:
-    logger.error(f"Failed to load scaler: {e}")
+    logger.error(f"❌ Failed to load model: {type(e).__name__}: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
+
+# Try to load scaler
+try:
+    scaler_path = "scaler.joblib"
+    logger.info(f"Attempting to load scaler from: {scaler_path}")
+    logger.info(f"Scaler file exists: {os.path.exists(scaler_path)}")
+    
+    if os.path.exists(scaler_path):
+        file_size = os.path.getsize(scaler_path)
+        logger.info(f"Scaler file size: {file_size} bytes")
+    
+    logger.info("Loading with joblib...")
+    scaler = joblib.load(scaler_path)
+    logger.info("✓✓✓ SCALER LOADED SUCCESSFULLY ✓✓✓")
+    
+except FileNotFoundError as e:
+    logger.error(f"❌ Scaler file not found: {e}")
+    logger.error(f"Current directory contents: {os.listdir('.')}")
+except Exception as e:
+    logger.error(f"❌ Failed to load scaler: {type(e).__name__}: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
+
+logger.info("=" * 60)
+logger.info(f"Model loaded: {model is not None}")
+logger.info(f"Scaler loaded: {scaler is not None}")
+logger.info("=" * 60)
 
 class PatientData(BaseModel):
     Pregnancies: int = Field(..., ge=0, le=20, description="Number of times pregnant")
