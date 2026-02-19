@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: diabetes-prediction-frontend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    docker:
+      context: .
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9
+      - key: API_URL
+        value: https://diabetes-dl-api.onrender.com
+    healthCheckPath: /_stcore/health
+    autoDeploy: true
+    maxShutdownDelay: 30
