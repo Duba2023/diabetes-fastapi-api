@@ -3,8 +3,12 @@ services:
     name: diabetes-dl-api
     env: docker
     dockerfilePath: ./Dockerfile
+    docker:
+      context: .
     envVars:
       - key: PYTHON_VERSION
         value: 3.9
-    autoDeploy: true
     healthCheckPath: /
+    autoDeploy: true
+    maxShutdownDelay: 30
+
