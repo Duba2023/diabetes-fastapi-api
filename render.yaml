@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: diabetes-dl-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9
+    autoDeploy: true
+    healthCheckPath: /
