@@ -2,16 +2,18 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies with build essentials for TensorFlow
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
+    libffi-dev \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python requirements first (for Docker layer caching)
+# Upgrade pip with extra time for TensorFlow compilation
 COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip wheel setuptools && \
+    pip install --no-cache-dir --no-build-isolation -r requirements.txt
 
 # Copy main application file
 COPY main.py .
@@ -34,7 +36,7 @@ RUN echo "=== Build Complete ===" && \
 EXPOSE 8000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/ || exit 1
 
 # Run FastAPI application with detailed logging
